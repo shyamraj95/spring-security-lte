@@ -70,7 +70,7 @@ public class AuthServiceImpl implements AuthService {
         // Save session details
         String sessionId = request.getSession().getId();
         String clientIp = request.getRemoteAddr();
-        sessionService.addSession(sessionId, authRequest.getPfId(), clientIp, refreshToken);
+        sessionService.addSession(sessionId, authRequest.getPfId(), clientIp);
         response.put("accessToken", accessToken);
         response.put("refreshToken", refreshToken);
         return response;
@@ -79,6 +79,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public String refreshAccessToken(String refreshToken, HttpServletRequest request) {
         // Check if the refresh token is blacklisted
+        String clientIp = request.getRemoteAddr();
+        if (sessionService.validateRefreshTokenSource(refreshToken, clientIp)) {
+            throw new RuntimeException("Refresh token is not valid.");
+        }
+
         if (sessionService.isRefreshTokenBlacklisted(refreshToken)) {
             throw new RuntimeException("Refresh token is blacklisted or invalid.");
         }
@@ -87,18 +92,18 @@ public class AuthServiceImpl implements AuthService {
         String username = jwtUtil.extractUsernameFromRefreshToken(refreshToken);
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
         if (!jwtUtil.validateRefreshToken(refreshToken, userDetails.getUsername())) {
+            sessionService.blacklistRefreshToken(refreshToken);
             throw new RuntimeException("Invalid or expired refresh token.");
         }
 
         // Get session details and increment the rotation count
-        String sessionId = request.getSession().getId(); // Get session ID by refresh token
-        boolean tokenDetails = sessionService.isRefreshTokenBlacklisted(sessionId);
+        boolean isBlocked = sessionService.isRefreshTokenBlacklisted(refreshToken);
 
-        if (tokenDetails) {
+        if (isBlocked) {
             throw new RuntimeException("Refresh token is blacklisted or invalid.");
         }
 
-        sessionService.incrementRefreshTokenRotationCount(sessionId);
+        sessionService.incrementRefreshTokenRotationCount(refreshToken);
 
         // Issue a new access token
         return jwtUtil.generateToken(userDetails.getUsername(), userDetails.getAuthorities().stream()

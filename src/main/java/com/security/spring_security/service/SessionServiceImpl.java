@@ -18,8 +18,6 @@ public class SessionServiceImpl implements SessionService {
     private final Cache<String, SessionDetailsDto> activeSessions; // Cache for access tokens
     private final Cache<String, RefreshTokenCacheDto> refreshTokenCache; // Cache for refresh tokens
 
-
-
     public SessionServiceImpl(
             @Value("${security.jwt-access-token-expiration}") long accessTokenExpirationMs,
             @Value("${security.jwt-refresh-token-expiration}") long refreshTokenExpirationMs) {
@@ -39,15 +37,15 @@ public class SessionServiceImpl implements SessionService {
 
     // Add session to activeSessions cache
     @Override
-    public void addSession(String sessionId, String username, String clientIp, String accessToken) {
-        SessionDetailsDto sessionDetails = new SessionDetailsDto(sessionId, username, clientIp, accessToken, false);
+    public void addSession(String sessionId, String username, String clientIp) {
+        SessionDetailsDto sessionDetails = new SessionDetailsDto(sessionId, username, clientIp, false);
         activeSessions.put(sessionId, sessionDetails);
     }
 
     // Add refresh token to refreshTokens cache
     @Override
-    public void addRefreshToken(String sessionId, String clientIp) {
-        RefreshTokenCacheDto refreshTokenDetails = new RefreshTokenCacheDto(sessionId, clientIp);
+    public void addRefreshToken(String sessionId, String refreshToken) {
+        RefreshTokenCacheDto refreshTokenDetails = new RefreshTokenCacheDto(sessionId, refreshToken);
         refreshTokenCache.put(sessionId, refreshTokenDetails);
     }
 
@@ -57,10 +55,26 @@ public class SessionServiceImpl implements SessionService {
         return activeSessions.getIfPresent(sessionId);
     }
 
-    // Get refresh token details by session ID
+    // Get refresh token details by refreshToken
     @Override
-    public RefreshTokenCacheDto getRefreshTokenDetails(String sessionId) {
-        return refreshTokenCache.getIfPresent(sessionId);
+    public RefreshTokenCacheDto getRefreshTokenDetails(String refreshToken) {
+        return refreshTokenCache.getIfPresent(refreshToken);
+    }
+
+    @Override
+    public boolean validateRefreshTokenSource(String refreshToken, String clientIp) {
+        RefreshTokenCacheDto refreshTokenDetails = refreshTokenCache.getIfPresent(refreshToken);
+        if (refreshTokenDetails != null) {
+            boolean isValidSource = refreshTokenDetails.getClientIp().equals(clientIp);
+            if (isValidSource) {
+                return true;
+            }
+            // if the clientIp suspicious will token blocked
+            blacklistRefreshToken(refreshToken);
+            return false;
+        } else {
+            return false;
+        }
     }
 
     // Blacklist access token
@@ -74,8 +88,8 @@ public class SessionServiceImpl implements SessionService {
 
     // Blacklist refresh token
     @Override
-    public void blacklistRefreshToken(String sessionId) {
-        RefreshTokenCacheDto refreshTokenDetails = refreshTokenCache.getIfPresent(sessionId);
+    public void blacklistRefreshToken(String refreshToken) {
+        RefreshTokenCacheDto refreshTokenDetails = refreshTokenCache.getIfPresent(refreshToken);
         if (refreshTokenDetails != null) {
             refreshTokenDetails.setTokenBlacklisted(true);
         }
@@ -83,40 +97,43 @@ public class SessionServiceImpl implements SessionService {
 
     // Increment refresh token rotation count
     @Override
-    public void incrementRefreshTokenRotationCount(String sessionId) {
-        RefreshTokenCacheDto refreshTokenDetails = refreshTokenCache.getIfPresent(sessionId);
+    public void incrementRefreshTokenRotationCount(String refreshToken) {
+        RefreshTokenCacheDto refreshTokenDetails = refreshTokenCache.getIfPresent(refreshToken);
         if (refreshTokenDetails != null) {
             refreshTokenDetails.incrementTokenRotationCount();
             if (refreshTokenDetails.getTokenRotationCount() > allowedRotateTokenCount) {
                 // Block session if rotation count exceeds 3
-                blacklistRefreshToken(sessionId);
-                refreshTokenCache.invalidate(sessionId);
+                blacklistRefreshToken(refreshToken);
+                refreshTokenCache.invalidate(refreshToken);
             }
         }
     }
+
     @Override
-    public boolean isRefreshTokenBlacklisted(String sessionId) {
-        RefreshTokenCacheDto refreshTokenDetails = refreshTokenCache.getIfPresent(sessionId);
+    public boolean isRefreshTokenBlacklisted(String refreshToken) {
+        RefreshTokenCacheDto refreshTokenDetails = refreshTokenCache.getIfPresent(refreshToken);
         if (refreshTokenDetails != null) {
             return refreshTokenDetails.isTokenBlacklisted();
         }
         return true;
     }
+
     @Override
     public boolean isAccessTokenBlacklisted(String sessionId) {
-        SessionDetailsDto  sessionDetails = activeSessions.getIfPresent(sessionId);
+        SessionDetailsDto sessionDetails = activeSessions.getIfPresent(sessionId);
         if (sessionDetails != null) {
             return sessionDetails.isAccessTokenBlacklisted();
         }
         return true;
     }
+
     @Override
     public void removeSession(String sessionId) {
         activeSessions.invalidate(sessionId);
     }
 
     @Override
-    public void removeRefreshToken(String sessionId) {
-        refreshTokenCache.invalidate(sessionId);
+    public void removeRefreshToken(String refreshToken) {
+        refreshTokenCache.invalidate(refreshToken);
     }
 }

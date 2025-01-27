@@ -5,26 +5,28 @@ import com.security.spring_security.dto.SessionDetailsDto;
 
 public interface SessionService {
 
-    void addSession(String sessionId, String username, String clientIp, String accessToken);
+    void addSession(String sessionId, String username, String clientIp);
 
-    void addRefreshToken(String sessionId, String clientIp);
+    void addRefreshToken(String refreshToken, String clientIp);
 
     SessionDetailsDto getSessionDetails(String sessionId);
 
     RefreshTokenCacheDto getRefreshTokenDetails(String sessionId);
 
+    boolean validateRefreshTokenSource(String refreshToken, String clientIp);
+
     void blacklistAccessToken(String sessionId);
 
     void removeSession(String sessionId);
 
-    boolean isRefreshTokenBlacklisted(String token);
+    boolean isRefreshTokenBlacklisted(String refreshToken);
 
     boolean isAccessTokenBlacklisted(String sessionId);
 
-    void blacklistRefreshToken(String token);
+    void blacklistRefreshToken(String refreshToken);
 
-    void incrementRefreshTokenRotationCount(String sessionId);
+    void incrementRefreshTokenRotationCount(String refreshToken);
 
-    public void removeRefreshToken(String sessionId);
+    public void removeRefreshToken(String refreshToken);
 
 }

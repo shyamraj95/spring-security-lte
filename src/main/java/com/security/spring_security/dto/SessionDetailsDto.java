@@ -11,15 +11,13 @@ public class SessionDetailsDto {
     private String sessionId;
     private String username;
     private String clientIp;
-    private String accessToken;
     private boolean accessTokenBlacklisted;
     private LocalDateTime createdAt;
 
-    public SessionDetailsDto(String sessionId, String username, String clientIp, String accessToken, boolean accessTokenBlacklisted) {
+    public SessionDetailsDto(String sessionId, String username, String clientIp, boolean accessTokenBlacklisted) {
         this.sessionId = sessionId;
         this.username = username;
         this.clientIp = clientIp;
-        this.accessToken = accessToken;
         this.accessTokenBlacklisted = accessTokenBlacklisted;
         this.createdAt = LocalDateTime.now();
     }
