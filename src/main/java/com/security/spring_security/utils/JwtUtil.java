@@ -8,6 +8,7 @@ import io.jsonwebtoken.security.Keys;
 
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -21,7 +22,7 @@ public class JwtUtil {
     private String secret;
 
     @Value("${security.jwt-access-token-expiration}")
-    private long expiration;
+    private long tokenExpiration;
 
     @Value("${security.jwt-refresh-secret}")
     private String refreshSecret;
@@ -32,20 +33,26 @@ public class JwtUtil {
     public String generateToken(String username, List<String> roles) throws JwtException {
         Claims claims = Jwts.claims().setSubject(username);
         claims.put("roles", roles);
+        Instant now = Instant.now();
+        Date issuedAt = Date.from(now);
+        Date expiration = Date.from(now.plusSeconds(tokenExpiration* 60));
         return Jwts.builder()
                 .setClaims(claims)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .setIssuedAt(issuedAt)
+                .setExpiration(expiration)
                 .signWith(Keys.hmacShaKeyFor(secret.getBytes()), SignatureAlgorithm.HS512)
                 .compact();
     }
 
     // Generate Refresh Token
     public String generateRefreshToken(String username) throws JwtException {
+        Instant now = Instant.now();
+        Date issuedAt = Date.from(now);
+        Date expiration = Date.from(now.plusSeconds(refreshExpiration * 60));
         return Jwts.builder()
                 .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + refreshExpiration))
+                .setIssuedAt(issuedAt)
+                .setExpiration(expiration)
                 .signWith(Keys.hmacShaKeyFor(refreshSecret.getBytes()), SignatureAlgorithm.HS512)
                 .compact();
     }
